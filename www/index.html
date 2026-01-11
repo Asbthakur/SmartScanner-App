@@ -1,0 +1,1584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0f0f1a">
+    <title>SmartScanner</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* ═══════════════════════════════════════════════════════════════
+           CSS VARIABLES & RESET
+           ═══════════════════════════════════════════════════════════════ */
+        :root {
+            --primary: #10B981;
+            --primary-light: #34D399;
+            --primary-dark: #059669;
+            --primary-glow: rgba(16, 185, 129, 0.3);
+            --accent: #6366F1;
+            --accent-light: #818CF8;
+            --bg-dark: #0f0f1a;
+            --bg-card: #1a1a2e;
+            --bg-elevated: #252542;
+            --text-primary: #ffffff;
+            --text-secondary: #9ca3af;
+            --text-muted: #6b7280;
+            --border: rgba(255, 255, 255, 0.1);
+            --safe-bottom: env(safe-area-inset-bottom, 20px);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+        }
+        
+        .hidden { display: none !important; }
+        
+        /* Scrollbar hide */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           SCREENS
+           ═══════════════════════════════════════════════════════════════ */
+        .screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            background: var(--bg-dark);
+        }
+        
+        .screen.active { display: flex; }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           WELCOME SCREEN
+           ═══════════════════════════════════════════════════════════════ */
+        .welcome-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 24px;
+            text-align: center;
+        }
+        
+        .welcome-logo {
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border-radius: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            margin-bottom: 24px;
+            box-shadow: 0 20px 40px var(--primary-glow);
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .welcome-title {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #fff, var(--primary-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .welcome-subtitle {
+            font-size: 16px;
+            color: var(--text-secondary);
+            margin-bottom: 48px;
+        }
+        
+        .welcome-features {
+            display: flex;
+            gap: 32px;
+            margin-bottom: 48px;
+        }
+        
+        .feature-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .feature-icon {
+            width: 56px;
+            height: 56px;
+            background: rgba(16, 185, 129, 0.15);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+        
+        .feature-item span:last-child {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        
+        .btn-start {
+            width: 100%;
+            max-width: 280px;
+            padding: 18px 32px;
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 10px 30px var(--primary-glow);
+        }
+        
+        .btn-start:active { transform: scale(0.98); }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           CAMERA SCREEN
+           ═══════════════════════════════════════════════════════════════ */
+        .camera-screen { background: #000; }
+        
+        .camera-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: #000;
+        }
+        
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            background: #000;
+            /* Hide default video controls/poster on Android */
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+        
+        /* Hide video play button overlay on Android WebView */
+        #video::-webkit-media-controls,
+        #video::-webkit-media-controls-enclosure,
+        #video::-webkit-media-controls-panel,
+        #video::-webkit-media-controls-play-button,
+        #video::-webkit-media-controls-start-playback-button {
+            display: none !important;
+            -webkit-appearance: none;
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        #video::-moz-media-controls {
+            display: none !important;
+        }
+        
+        /* Camera loading overlay */
+        .camera-loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: opacity 0.3s ease;
+        }
+        
+        .camera-loading.hidden {
+            display: none !important;
+        }
+        
+        .camera-loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(16, 185, 129, 0.2);
+            border-top-color: #10B981;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .camera-loading-text {
+            margin-top: 16px;
+            color: #9ca3af;
+            font-size: 14px;
+        }
+        
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        .camera-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+            z-index: 10;
+        }
+        
+        .header-btn {
+            width: 44px;
+            height: 44px;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: none;
+            border-radius: 50%;
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        
+        .header-btn:active {
+            transform: scale(0.95);
+            background: rgba(255,255,255,0.25);
+        }
+        
+        .pages-badge {
+            padding: 8px 16px;
+            background: var(--primary);
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+        
+        .camera-status {
+            position: absolute;
+            bottom: 160px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 24px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #fff;
+            z-index: 10;
+            white-space: nowrap;
+            transition: all 0.3s;
+        }
+        
+        .camera-status.locked {
+            background: var(--primary);
+            box-shadow: 0 4px 20px var(--primary-glow);
+        }
+        
+        .camera-status.warning {
+            background: rgba(239, 68, 68, 0.9);
+        }
+        
+        .camera-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 20px 24px 40px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+            z-index: 10;
+        }
+        
+        .control-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            background: none;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            padding: 8px;
+        }
+        
+        .control-btn-icon {
+            width: 56px;
+            height: 56px;
+            background: rgba(255,255,255,0.12);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            transition: all 0.2s;
+        }
+        
+        .control-btn:active .control-btn-icon {
+            transform: scale(0.95);
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .control-btn-label {
+            font-size: 12px;
+            color: rgba(255,255,255,0.7);
+            font-weight: 500;
+        }
+        
+        .capture-btn {
+            width: 80px;
+            height: 80px;
+            background: #fff;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            cursor: pointer;
+            position: relative;
+            transition: transform 0.15s;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .capture-btn:active { transform: scale(0.92); }
+        
+        .capture-btn::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 64px;
+            height: 64px;
+            background: #fff;
+            border-radius: 50%;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           CROP SCREEN
+           ═══════════════════════════════════════════════════════════════ */
+        .screen-header {
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .screen-header-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .crop-preview {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            background: #000;
+            position: relative;
+        }
+        
+        #crop-canvas {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 12px;
+        }
+        
+        .crop-instructions {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 24px;
+            font-size: 14px;
+            color: rgba(255,255,255,0.8);
+        }
+        
+        .screen-actions {
+            padding: 20px;
+            display: flex;
+            gap: 12px;
+            background: var(--bg-card);
+        }
+        
+        .btn-secondary {
+            flex: 1;
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            background: var(--bg-elevated);
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-secondary:active {
+            background: rgba(255,255,255,0.15);
+        }
+        
+        .btn-primary {
+            flex: 1;
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            box-shadow: 0 8px 24px var(--primary-glow);
+            transition: all 0.2s;
+        }
+        
+        .btn-primary:active { transform: scale(0.98); }
+        
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           FILTER SCREEN - BEAUTIFUL BOTTOM SHEET DESIGN
+           ═══════════════════════════════════════════════════════════════ */
+        .filter-screen {
+            background: #000;
+        }
+        
+        .filter-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+            z-index: 10;
+        }
+        
+        .filter-header-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .filter-preview {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 80px 20px 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .filter-preview-container {
+            position: relative;
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        
+        .filter-preview-container .scan-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+        }
+        
+        #filter-canvas {
+            display: block;
+            max-width: 100%;
+            max-height: calc(100vh - 400px);
+            border-radius: 16px;
+        }
+        
+        .compare-hint {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            padding: 8px 14px;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 20px;
+            font-size: 12px;
+            color: rgba(255,255,255,0.8);
+        }
+        
+        .scan-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(16, 185, 129, 0.3) 15%,
+                var(--primary) 50%,
+                rgba(16, 185, 129, 0.3) 85%,
+                transparent 100%
+            );
+            box-shadow: 
+                0 0 20px var(--primary),
+                0 0 40px var(--primary),
+                0 0 60px rgba(16, 185, 129, 0.5);
+            display: none;
+            z-index: 20;
+        }
+        
+        .scan-line.active {
+            display: block;
+            animation: scanMove 1.5s ease-in-out;
+        }
+        
+        @keyframes scanMove {
+            0% { 
+                top: 0; 
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% { 
+                top: 100%; 
+                opacity: 0;
+            }
+        }
+        
+        /* Scan glow effect on the image */
+        .filter-preview-container.scanning::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                to bottom,
+                rgba(16, 185, 129, 0.1) 0%,
+                transparent 100%
+            );
+            animation: scanGlow 1.5s ease-in-out;
+            pointer-events: none;
+            border-radius: 16px;
+        }
+        
+        @keyframes scanGlow {
+            0% {
+                opacity: 0;
+                transform: translateY(-100%);
+            }
+            50% {
+                opacity: 1;
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(100%);
+            }
+        }
+        
+        /* Pulse effect after scan completes */
+        .filter-preview-container.scan-complete {
+            animation: scanPulse 0.5s ease-out;
+        }
+        
+        @keyframes scanPulse {
+            0% {
+                box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            }
+            50% {
+                box-shadow: 0 20px 60px rgba(0,0,0,0.5),
+                            0 0 40px var(--primary),
+                            0 0 80px rgba(16, 185, 129, 0.4);
+            }
+            100% {
+                box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            }
+        }
+        
+        /* Bottom Sheet */
+        .filter-bottom-sheet {
+            background: var(--bg-card);
+            border-radius: 28px 28px 0 0;
+            padding-bottom: var(--safe-bottom);
+            transition: height 0.3s ease;
+        }
+        
+        .sheet-handle {
+            display: flex;
+            justify-content: center;
+            padding: 12px;
+            cursor: grab;
+        }
+        
+        .sheet-handle-bar {
+            width: 40px;
+            height: 5px;
+            background: var(--text-muted);
+            border-radius: 3px;
+        }
+        
+        /* Tabs */
+        .filter-tabs {
+            display: flex;
+            padding: 0 16px;
+            gap: 4px;
+            margin-bottom: 16px;
+        }
+        
+        .filter-tab {
+            flex: 1;
+            padding: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-muted);
+            background: transparent;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .filter-tab.active {
+            color: var(--primary);
+            background: rgba(16, 185, 129, 0.15);
+        }
+        
+        /* Filter Options */
+        .filter-content {
+            padding: 0 16px;
+            overflow-x: auto;
+        }
+        
+        .filter-options {
+            display: flex;
+            gap: 12px;
+            padding-bottom: 16px;
+            overflow-x: auto;
+        }
+        
+        .filter-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 12px;
+            min-width: 76px;
+            background: var(--bg-elevated);
+            border: 2px solid transparent;
+            border-radius: 16px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .filter-btn.active {
+            background: rgba(99, 102, 241, 0.2);
+            border-color: var(--accent);
+            color: #fff;
+            transform: scale(1.05);
+        }
+        
+        .filter-btn-icon {
+            font-size: 24px;
+        }
+        
+        /* Adjustments */
+        .adjustments-content {
+            padding: 0 16px;
+        }
+        
+        .adjustment-item {
+            margin-bottom: 20px;
+        }
+        
+        .adjustment-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+        
+        .adjustment-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        
+        .adjustment-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary);
+            min-width: 40px;
+            text-align: right;
+        }
+        
+        .adjustment-value.zero {
+            color: var(--text-muted);
+        }
+        
+        /* Custom Slider */
+        .slider-container {
+            position: relative;
+            height: 32px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .slider-track {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: var(--bg-elevated);
+            border-radius: 3px;
+        }
+        
+        .slider-fill {
+            position: absolute;
+            height: 6px;
+            background: var(--primary);
+            border-radius: 3px;
+            transition: all 0.1s;
+        }
+        
+        .slider-center-mark {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 3px;
+            height: 14px;
+            background: var(--text-muted);
+            border-radius: 2px;
+        }
+        
+        .slider-thumb {
+            position: absolute;
+            width: 28px;
+            height: 28px;
+            background: #fff;
+            border-radius: 50%;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            transition: transform 0.1s;
+            pointer-events: none;
+        }
+        
+        .slider-thumb.dragging {
+            transform: scale(1.15);
+        }
+        
+        .slider-input {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+            -webkit-appearance: none;
+        }
+        
+        /* Save Button */
+        .filter-save-area {
+            padding: 16px 16px 8px;
+        }
+        
+        .btn-save {
+            width: 100%;
+            padding: 18px;
+            font-size: 17px;
+            font-weight: 600;
+            color: #fff;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            box-shadow: 0 10px 30px var(--primary-glow);
+            transition: all 0.2s;
+        }
+        
+        .btn-save:active { transform: scale(0.98); }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           RESULT SCREEN
+           ═══════════════════════════════════════════════════════════════ */
+        .result-pages {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            align-content: start;
+        }
+        
+        .result-page-item {
+            position: relative;
+            aspect-ratio: 3/4;
+            background: var(--bg-card);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .result-page-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .result-page-number {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 28px;
+            height: 28px;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .result-page-delete {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 28px;
+            height: 28px;
+            background: rgba(239, 68, 68, 0.9);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .result-page-item:hover .result-page-delete,
+        .result-page-item:active .result-page-delete {
+            opacity: 1;
+        }
+        
+        .result-empty {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+            text-align: center;
+        }
+        
+        .result-empty-icon {
+            font-size: 72px;
+            margin-bottom: 16px;
+            opacity: 0.4;
+        }
+        
+        .result-empty-text {
+            font-size: 16px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+        
+        .result-actions {
+            padding: 20px;
+            background: var(--bg-card);
+            border-radius: 28px 28px 0 0;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.3);
+        }
+        
+        .result-count {
+            padding: 6px 14px;
+            background: rgba(16, 185, 129, 0.2);
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary);
+        }
+        
+        .add-actions {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .add-btn {
+            flex: 1;
+            padding: 14px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        
+        .add-btn:active {
+            background: rgba(255,255,255,0.1);
+            transform: scale(0.98);
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           MODAL
+           ═══════════════════════════════════════════════════════════════ */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            align-items: flex-end;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .modal.active { display: flex; }
+        
+        .modal-backdrop {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+        
+        .modal-content {
+            position: relative;
+            width: 100%;
+            max-width: 420px;
+            background: var(--bg-card);
+            border-radius: 28px 28px 0 0;
+            padding: 24px;
+            padding-bottom: calc(24px + var(--safe-bottom));
+            animation: slideUp 0.3s ease;
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .modal-header h2 {
+            font-size: 24px;
+            font-weight: 700;
+        }
+        
+        .modal-close {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-elevated);
+            border: none;
+            border-radius: 12px;
+            color: var(--text-muted);
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-preview {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 32px;
+            background: rgba(16, 185, 129, 0.1);
+            border-radius: 20px;
+            margin-bottom: 24px;
+        }
+        
+        .pdf-icon-large {
+            font-size: 64px;
+            margin-bottom: 12px;
+        }
+        
+        .modal-page-count {
+            font-size: 16px;
+            color: var(--text-secondary);
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .share-btn {
+            flex: 1;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-elevated);
+            border: none;
+            border-radius: 16px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .share-btn:active { transform: scale(0.98); }
+        
+        .share-btn.download {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+        }
+        
+        .share-btn.whatsapp {
+            background: linear-gradient(135deg, #25D366, #128C7E);
+        }
+        
+        .share-icon {
+            font-size: 32px;
+        }
+        
+        .btn-done-new {
+            width: 100%;
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-muted);
+            background: var(--bg-elevated);
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           LOADING & EFFECTS
+           ═══════════════════════════════════════════════════════════════ */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 15, 26, 0.95);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            z-index: 2000;
+        }
+        
+        .loading-overlay.active { display: flex; }
+        
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid rgba(16, 185, 129, 0.2);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            font-size: 16px;
+            color: var(--text-secondary);
+        }
+        
+        .flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #fff;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 999;
+        }
+        
+        .flash.active {
+            animation: flash 0.15s ease-out;
+        }
+        
+        @keyframes flash {
+            0% { opacity: 0.9; }
+            100% { opacity: 0; }
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            padding: 14px 28px;
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            color: #fff;
+            font-size: 15px;
+            font-weight: 500;
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 3000;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+        
+        .toast.success {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+        
+        .toast.error {
+            background: #EF4444;
+            border-color: #EF4444;
+        }
+    </style>
+</head>
+<body>
+    <!-- WELCOME SCREEN -->
+    <div id="screen-welcome" class="screen active">
+        <div class="welcome-content">
+            <div class="welcome-logo">📄</div>
+            <h1 class="welcome-title">SmartScanner</h1>
+            <p class="welcome-subtitle">AI-Powered Document Scanner</p>
+            <div class="welcome-features">
+                <div class="feature-item">
+                    <div class="feature-icon">🎯</div>
+                    <span>Auto Detect</span>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">✨</div>
+                    <span>Enhance</span>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">📑</div>
+                    <span>PDF</span>
+                </div>
+            </div>
+            <button id="btn-start" class="btn-start">📷 Start Scanning</button>
+        </div>
+    </div>
+    
+    <!-- CAMERA SCREEN -->
+    <div id="screen-camera" class="screen camera-screen">
+        <div class="camera-container">
+            <video id="video" autoplay playsinline muted disablePictureInPicture webkit-playsinline></video>
+            <canvas id="overlay"></canvas>
+            
+            <!-- Loading overlay while camera initializes -->
+            <div id="camera-loading" class="camera-loading">
+                <div class="camera-loading-spinner"></div>
+                <div class="camera-loading-text">Starting camera...</div>
+            </div>
+            
+            <div class="camera-header">
+                <button id="btn-back" class="header-btn">✕</button>
+                <span id="page-count" class="pages-badge">0 pages</span>
+            </div>
+            
+            <div id="status" class="camera-status">Initializing...</div>
+            
+            <div class="camera-controls">
+                <button id="btn-gallery" class="control-btn">
+                    <div class="control-btn-icon">🖼️</div>
+                    <span class="control-btn-label">Gallery</span>
+                </button>
+                <button id="btn-capture" class="capture-btn"></button>
+                <button id="btn-done" class="control-btn">
+                    <div class="control-btn-icon">✓</div>
+                    <span class="control-btn-label">Done</span>
+                </button>
+            </div>
+        </div>
+        <input type="file" id="gallery-input" class="hidden" accept="image/*">
+    </div>
+    
+    <!-- CROP SCREEN -->
+    <div id="screen-crop" class="screen">
+        <div class="screen-header">
+            <button id="btn-crop-back" class="header-btn">←</button>
+            <span class="screen-header-title">Adjust Corners</span>
+            <div style="width:44px"></div>
+        </div>
+        <div class="crop-preview">
+            <canvas id="crop-canvas"></canvas>
+            <div class="crop-instructions">Drag corners to select document</div>
+        </div>
+        <div class="screen-actions">
+            <button id="btn-crop-cancel" class="btn-secondary">Cancel</button>
+            <button id="btn-crop-done" class="btn-primary">Done</button>
+        </div>
+    </div>
+    
+    <!-- FILTER SCREEN - BEAUTIFUL BOTTOM SHEET DESIGN -->
+    <div id="screen-filter" class="screen filter-screen">
+        <!-- Header -->
+        <div class="filter-header">
+            <button id="btn-filter-back" class="header-btn">←</button>
+            <span class="filter-header-title">Enhance</span>
+            <button id="btn-filter-reset" class="header-btn">↺</button>
+        </div>
+        
+        <!-- Preview -->
+        <div class="filter-preview">
+            <div id="filter-preview-container" class="filter-preview-container">
+                <canvas id="filter-canvas"></canvas>
+                <div id="scan-line" class="scan-line"></div>
+                <div class="compare-hint">Hold to compare</div>
+            </div>
+        </div>
+        
+        <!-- Bottom Sheet -->
+        <div class="filter-bottom-sheet">
+            <div class="sheet-handle">
+                <div class="sheet-handle-bar"></div>
+            </div>
+            
+            <!-- Tabs -->
+            <div class="filter-tabs">
+                <button class="filter-tab active" data-tab="filters">Filters</button>
+                <button class="filter-tab" data-tab="adjust">Adjust</button>
+            </div>
+            
+            <!-- Filter Options Tab -->
+            <div id="tab-filters" class="filter-content">
+                <div class="filter-options scrollbar-hide">
+                    <button class="filter-btn active" data-filter="document">
+                        <span class="filter-btn-icon">📄</span>
+                        Document
+                    </button>
+                    <button class="filter-btn" data-filter="book">
+                        <span class="filter-btn-icon">📖</span>
+                        Book
+                    </button>
+                    <button class="filter-btn" data-filter="whiteboard">
+                        <span class="filter-btn-icon">🏢</span>
+                        Whiteboard
+                    </button>
+                    <button class="filter-btn" data-filter="photo">
+                        <span class="filter-btn-icon">📷</span>
+                        Photo
+                    </button>
+                    <button class="filter-btn" data-filter="bw">
+                        <span class="filter-btn-icon">◐</span>
+                        B&W
+                    </button>
+                    <button class="filter-btn" data-filter="gray">
+                        <span class="filter-btn-icon">🔘</span>
+                        Gray
+                    </button>
+                    <button class="filter-btn" data-filter="original">
+                        <span class="filter-btn-icon">🖼️</span>
+                        Original
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Adjust Tab -->
+            <div id="tab-adjust" class="adjustments-content hidden">
+                <div class="adjustment-item">
+                    <div class="adjustment-header">
+                        <span class="adjustment-label">Brightness</span>
+                        <span id="val-brightness" class="adjustment-value zero">0</span>
+                    </div>
+                    <div class="slider-container">
+                        <div class="slider-track"></div>
+                        <div id="fill-brightness" class="slider-fill" style="left:50%;width:0%"></div>
+                        <div class="slider-center-mark"></div>
+                        <div id="thumb-brightness" class="slider-thumb" style="left:calc(50% - 14px)"></div>
+                        <input type="range" id="adj-brightness" class="slider-input" min="-50" max="50" value="0">
+                    </div>
+                </div>
+                
+                <div class="adjustment-item">
+                    <div class="adjustment-header">
+                        <span class="adjustment-label">Contrast</span>
+                        <span id="val-contrast" class="adjustment-value zero">0</span>
+                    </div>
+                    <div class="slider-container">
+                        <div class="slider-track"></div>
+                        <div id="fill-contrast" class="slider-fill" style="left:50%;width:0%"></div>
+                        <div class="slider-center-mark"></div>
+                        <div id="thumb-contrast" class="slider-thumb" style="left:calc(50% - 14px)"></div>
+                        <input type="range" id="adj-contrast" class="slider-input" min="-50" max="50" value="0">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Save Button -->
+            <div class="filter-save-area">
+                <button id="btn-filter-save" class="btn-save">Save Page ✓</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- RESULT SCREEN -->
+    <div id="screen-result" class="screen">
+        <div class="screen-header">
+            <button id="btn-result-back" class="header-btn">←</button>
+            <span class="screen-header-title">Your Document</span>
+            <span id="result-count" class="result-count">0 pages</span>
+        </div>
+        <div id="result-pages" class="result-pages">
+            <div class="result-empty">
+                <div class="result-empty-icon">📄</div>
+                <div class="result-empty-text">No pages yet.<br>Add your first scan!</div>
+            </div>
+        </div>
+        <div class="result-actions">
+            <div class="add-actions">
+                <button id="btn-add-scan" class="add-btn">📷 Scan More</button>
+                <button id="btn-add-gallery" class="add-btn">🖼️ Add Image</button>
+            </div>
+            <button id="btn-create-pdf" class="btn-primary">📑 Create PDF</button>
+        </div>
+        <input type="file" id="add-image-input" class="hidden" accept="image/*" multiple>
+    </div>
+    
+    <!-- SHARE MODAL -->
+    <div id="modal-share" class="modal">
+        <div class="modal-backdrop" id="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>PDF Ready! 🎉</h2>
+                <button id="btn-close-modal" class="modal-close">✕</button>
+            </div>
+            <div class="modal-preview">
+                <div class="pdf-icon-large">📄</div>
+                <span id="modal-page-count" class="modal-page-count">1 page</span>
+            </div>
+            <div class="modal-actions">
+                <button id="btn-download" class="share-btn download">
+                    <span class="share-icon">⬇️</span>
+                    <span>Download</span>
+                </button>
+                <button id="btn-whatsapp" class="share-btn whatsapp">
+                    <span class="share-icon">💬</span>
+                    <span>Share</span>
+                </button>
+            </div>
+            <button id="btn-new-scan" class="btn-done-new">✓ Done - Start New Scan</button>
+        </div>
+    </div>
+    
+    <!-- LOADING OVERLAY -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <span id="loading-text" class="loading-text">Processing...</span>
+    </div>
+    
+    <!-- FLASH EFFECT -->
+    <div id="flash" class="flash"></div>
+    
+    <!-- TOAST -->
+    <div id="toast" class="toast"></div>
+
+    <!-- External Libraries -->
+    <script src="lib/opencv.js" onload="console.log('✅ OpenCV loaded'); window.cvReady=true;"></script>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous"></script>
+    
+    <!-- App Modules -->
+    <script src="js/config.js"></script>
+    <script src="js/geometry.js"></script>
+    <script src="js/rectangle-math.js"></script>
+    <script src="js/heatmap.js"></script>
+    <script src="js/opencv-detect.js"></script>
+    <script src="js/stabilizer.js"></script>
+    <script src="js/image-processor.js"></script>
+    <script src="js/crop.js"></script>
+    <script src="js/enhance.js"></script>
+    <script src="js/filter.js"></script>
+    <script src="js/pdf.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/app.js"></script>
+    
+    <!-- Tab Switching & Slider Logic -->
+    <script>
+        // Tab switching
+        document.querySelectorAll('.filter-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                const tabId = tab.dataset.tab;
+                document.getElementById('tab-filters').classList.toggle('hidden', tabId !== 'filters');
+                document.getElementById('tab-adjust').classList.toggle('hidden', tabId !== 'adjust');
+            });
+        });
+        
+        // Custom slider update
+        function updateSlider(inputId) {
+            const input = document.getElementById(inputId);
+            const value = parseInt(input.value);
+            const name = inputId.replace('adj-', '');
+            const fill = document.getElementById('fill-' + name);
+            const thumb = document.getElementById('thumb-' + name);
+            const valDisplay = document.getElementById('val-' + name);
+            
+            if (fill && thumb && valDisplay) {
+                const percent = (value + 50) / 100;
+                
+                // Update fill
+                if (value >= 0) {
+                    fill.style.left = '50%';
+                    fill.style.width = (value / 2) + '%';
+                } else {
+                    fill.style.left = (50 + value / 2) + '%';
+                    fill.style.width = (-value / 2) + '%';
+                }
+                
+                // Update thumb
+                thumb.style.left = `calc(${percent * 100}% - 14px)`;
+                
+                // Update value display
+                valDisplay.textContent = value > 0 ? '+' + value : value;
+                valDisplay.classList.toggle('zero', value === 0);
+            }
+        }
+        
+        document.getElementById('adj-brightness').addEventListener('input', () => updateSlider('adj-brightness'));
+        document.getElementById('adj-contrast').addEventListener('input', () => updateSlider('adj-contrast'));
+        
+        // Scan animation function - can be called from FilterManager
+        window.runScanAnimation = function() {
+            const container = document.getElementById('filter-preview-container');
+            const scanLine = document.getElementById('scan-line');
+            
+            if (!container || !scanLine) return;
+            
+            // Reset
+            scanLine.classList.remove('active');
+            container.classList.remove('scanning', 'scan-complete');
+            
+            // Start animation
+            requestAnimationFrame(() => {
+                container.classList.add('scanning');
+                scanLine.classList.add('active');
+                
+                // After animation completes
+                setTimeout(() => {
+                    scanLine.classList.remove('active');
+                    container.classList.remove('scanning');
+                    container.classList.add('scan-complete');
+                    
+                    // Remove complete class after pulse
+                    setTimeout(() => {
+                        container.classList.remove('scan-complete');
+                    }, 500);
+                }, 1500);
+            });
+        };
+        
+        // Auto-run scan when filter screen becomes visible
+        const filterScreen = document.getElementById('screen-filter');
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.target.classList.contains('active')) {
+                    setTimeout(runScanAnimation, 300);
+                }
+            });
+        });
+        
+        if (filterScreen) {
+            observer.observe(filterScreen, { attributes: true, attributeFilter: ['class'] });
+        }
+    </script>
+</body>
+</html>

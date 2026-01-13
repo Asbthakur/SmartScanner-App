@@ -1,58 +1,140 @@
 /**
- * UI Module
- * Handles screen transitions and UI updates
+ * UI Manager - Handles all UI interactions
+ * Modern, responsive, and user-friendly
  */
 
 const UI = {
-    
-    currentScreen: 'welcome',
+    // Screen management
+    screens: {},
+    currentScreen: null,
     
     /**
      * Initialize UI
      */
     init() {
-        console.log('📱 UI initialized');
-        // Show welcome screen by default
-        this.showScreen('welcome');
+        // Cache screen elements
+        this.screens = {
+            welcome: document.getElementById('screen-welcome'),
+            camera: document.getElementById('screen-camera'),
+            crop: document.getElementById('screen-crop'),
+            filter: document.getElementById('screen-filter'),
+            result: document.getElementById('screen-result')
+        };
+        
+        console.log('✅ UI initialized');
     },
     
     /**
-     * Show a screen
+     * Show a specific screen
      */
     showScreen(name) {
-        console.log(`📱 Screen: ${name}`);
-        
         // Hide all screens
-        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        Object.values(this.screens).forEach(screen => {
+            if (screen) screen.classList.remove('active');
+        });
         
         // Show target screen
-        const screen = document.getElementById(`screen-${name}`);
-        if (screen) {
-            screen.classList.add('active');
+        if (this.screens[name]) {
+            this.screens[name].classList.add('active');
             this.currentScreen = name;
         }
+        
+        console.log(`📱 Screen: ${name}`);
     },
     
     /**
-     * Set status text
+     * Set camera status message
      */
     setStatus(text, type = 'info') {
-        const el = document.getElementById('status-text');
-        if (el) {
-            el.textContent = text;
-            el.className = `status-text status-${type}`;
+        const status = document.getElementById('status');
+        if (!status) return;
+        
+        status.textContent = text;
+        status.className = 'camera-status';
+        
+        if (type === 'locked' || type === 'success') {
+            status.classList.add('locked');
+        } else if (type === 'warning' || type === 'error') {
+            status.classList.add('warning');
         }
     },
     
     /**
-     * Flash effect for capture
+     * Set page count badge
+     */
+    setPageCount(count) {
+        const badge = document.getElementById('page-count');
+        const resultCount = document.getElementById('result-count');
+        
+        const text = count === 1 ? '1 page' : `${count} pages`;
+        
+        if (badge) badge.textContent = text;
+        if (resultCount) resultCount.textContent = text;
+        
+        // Enable/disable PDF button
+        const pdfBtn = document.getElementById('btn-create-pdf');
+        if (pdfBtn) {
+            pdfBtn.disabled = count === 0;
+        }
+    },
+    
+    /**
+     * Update result pages grid
+     */
+    updateResultPages(pages) {
+        const container = document.getElementById('result-pages');
+        if (!container) return;
+        
+        // Clear container
+        container.innerHTML = '';
+        
+        if (pages.length === 0) {
+            // Show empty state
+            container.innerHTML = `
+                <div class="result-empty">
+                    <div class="result-empty-icon">📄</div>
+                    <div class="result-empty-text">No pages yet.<br>Add your first scan!</div>
+                </div>
+            `;
+            return;
+        }
+        
+        // Add page thumbnails
+        pages.forEach((page, index) => {
+            const item = document.createElement('div');
+            item.className = 'result-page-item';
+            item.innerHTML = `
+                <img src="${page.dataUrl}" alt="Page ${index + 1}">
+                <div class="result-page-number">${index + 1}</div>
+                <button class="result-page-delete" data-index="${index}">✕</button>
+            `;
+            container.appendChild(item);
+        });
+        
+        // Bind delete buttons
+        container.querySelectorAll('.result-page-delete').forEach(btn => {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                const index = parseInt(btn.dataset.index);
+                if (typeof App !== 'undefined' && App.deletePage) {
+                    App.deletePage(index);
+                }
+            };
+        });
+    },
+    
+    /**
+     * Flash effect on capture
      */
     flash() {
-        const el = document.getElementById('flash');
-        if (el) {
-            el.classList.add('active');
-            setTimeout(() => el.classList.remove('active'), 150);
-        }
+        const flash = document.getElementById('flash');
+        if (!flash) return;
+        
+        flash.classList.remove('active');
+        void flash.offsetWidth; // Trigger reflow
+        flash.classList.add('active');
+        
+        setTimeout(() => flash.classList.remove('active'), 200);
     },
     
     /**
@@ -60,10 +142,10 @@ const UI = {
      */
     showLoading(text = 'Processing...') {
         const overlay = document.getElementById('loading-overlay');
-        const textEl = document.getElementById('loading-text');
+        const loadingText = document.getElementById('loading-text');
         
+        if (loadingText) loadingText.textContent = text;
         if (overlay) overlay.classList.add('active');
-        if (textEl) textEl.textContent = text;
     },
     
     /**
@@ -75,90 +157,97 @@ const UI = {
     },
     
     /**
-     * Set page count display
+     * Show toast notification
      */
-    setPageCount(count) {
-        const el = document.getElementById('page-count');
-        if (el) {
-            el.textContent = count > 0 ? count : '';
-            el.style.display = count > 0 ? 'flex' : 'none';
-        }
+    showToast(message, type = 'info', duration = 3000) {
+        const toast = document.getElementById('toast');
+        if (!toast) return;
         
-        const resultCount = document.getElementById('result-count');
-        if (resultCount) {
-            resultCount.textContent = `${count} page${count !== 1 ? 's' : ''}`;
-        }
+        toast.textContent = message;
+        toast.className = 'toast';
+        if (type) toast.classList.add(type);
+        
+        // Show
+        setTimeout(() => toast.classList.add('show'), 10);
+        
+        // Hide after duration
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, duration);
     },
     
     /**
-     * Show toast message
-     */
-    toast(message, duration = 2000) {
-        const el = document.getElementById('toast');
-        if (el) {
-            el.textContent = message;
-            el.classList.add('active');
-            setTimeout(() => el.classList.remove('active'), duration);
-        }
-    },
-    
-    /**
-     * Show alert
+     * Show alert (fallback to toast)
      */
     alert(message) {
-        alert(message);
-    },
-    
-    /**
-     * Render pages in result screen
-     */
-    renderPages(pages, onDelete) {
-        const container = document.getElementById('result-pages');
-        if (!container) return;
-        
-        if (pages.length === 0) {
-            container.innerHTML = `
-                <div class="result-empty">
-                    <div class="result-empty-icon">📄</div>
-                    <div class="result-empty-text">No pages yet.<br>Add your first scan!</div>
-                </div>
-            `;
-            return;
-        }
-        
-        container.innerHTML = pages.map((page, i) => `
-            <div class="result-page" data-index="${i}">
-                <img src="${page.dataUrl}" alt="Page ${i + 1}">
-                <button class="delete-page-btn" onclick="App.deletePage(${i})">×</button>
-                <span class="page-number">${i + 1}</span>
-            </div>
-        `).join('');
+        this.showToast(message, 'error', 4000);
     },
     
     /**
      * Set active filter button
      */
     setActiveFilter(filterName) {
-        // Remove active from all filter buttons
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.classList.remove('active');
+            if (btn.dataset.filter === filterName) {
+                btn.classList.add('active');
+            }
         });
-        
-        // Add active to selected filter
-        const activeBtn = document.querySelector(`.filter-btn[data-filter="${filterName}"]`);
-        if (activeBtn) {
-            activeBtn.classList.add('active');
+    },
+    
+    /**
+     * Set adjustment slider value display
+     */
+    setAdjustmentValue(type, value) {
+        const el = document.getElementById(`val-${type}`);
+        if (el) {
+            el.textContent = value > 0 ? `+${value}` : value;
         }
     },
     
     /**
-     * Reset adjustments sliders
+     * Reset adjustment sliders
      */
     resetAdjustments() {
-        const brightness = document.getElementById('brightness-slider');
-        const contrast = document.getElementById('contrast-slider');
+        const brightness = document.getElementById('adj-brightness');
+        const contrast = document.getElementById('adj-contrast');
         
         if (brightness) brightness.value = 0;
         if (contrast) contrast.value = 0;
+        
+        this.setAdjustmentValue('brightness', 0);
+        this.setAdjustmentValue('contrast', 0);
+    },
+    
+    /**
+     * Show share modal
+     */
+    showShareModal(pageCount) {
+        const modal = document.getElementById('modal-share');
+        const countEl = document.getElementById('modal-page-count');
+        
+        if (countEl) {
+            countEl.textContent = pageCount === 1 ? '1 page' : `${pageCount} pages`;
+        }
+        
+        if (modal) modal.classList.add('active');
+    },
+    
+    /**
+     * Hide share modal
+     */
+    hideShareModal() {
+        const modal = document.getElementById('modal-share');
+        if (modal) modal.classList.remove('active');
+    },
+    
+    /**
+     * Resize overlay canvas to match video
+     */
+    resizeOverlay(video, overlay) {
+        if (!video || !overlay) return;
+        
+        overlay.width = video.videoWidth;
+        overlay.height = video.videoHeight;
     }
 };

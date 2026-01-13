@@ -99,10 +99,6 @@ const App = {
         UI.showScreen('camera');
         UI.setStatus('Requesting camera...');
         
-        // Show loading overlay
-        const loadingOverlay = document.getElementById('camera-loading');
-        if (loadingOverlay) loadingOverlay.classList.remove('hidden');
-        
         try {
             // IMPORTANT: Stop any existing stream first to prevent camera lock
             if (this.stream) {
@@ -118,8 +114,6 @@ const App = {
                 await new Promise(resolve => setTimeout(resolve, 300));
             }
             
-            console.log('📷 Requesting camera access...');
-            
             // Request camera with fallback options
             let stream = null;
             
@@ -133,21 +127,17 @@ const App = {
                     },
                     audio: false
                 });
-                console.log('📷 Got camera stream with ideal settings');
             } catch (e) {
                 console.warn('Ideal camera settings failed, trying basic...', e);
                 // Fallback to basic camera request
                 stream = await navigator.mediaDevices.getUserMedia({
-                    video: true,
+                    video: { facingMode: 'environment' },
                     audio: false
                 });
-                console.log('📷 Got camera stream with basic settings');
             }
             
             this.stream = stream;
             this.video.srcObject = stream;
-            
-            console.log('📷 Waiting for video metadata...');
             
             // Wait for video to be ready with timeout
             await new Promise((resolve, reject) => {
@@ -157,7 +147,6 @@ const App = {
                 }, 5000);
                 
                 this.video.onloadedmetadata = () => {
-                    console.log('📷 Video metadata loaded');
                     clearTimeout(timeout);
                     resolve();
                 };
@@ -169,7 +158,6 @@ const App = {
             });
             
             await this.video.play();
-            console.log('📷 Video playing');
             
             // Set overlay dimensions
             this.overlay.width = this.video.videoWidth || CONFIG.CAMERA.WIDTH;
@@ -177,9 +165,6 @@ const App = {
             
             console.log(`📷 Camera ready: ${this.overlay.width}x${this.overlay.height}`);
             UI.setStatus('Point at document');
-            
-            // Hide loading overlay
-            if (loadingOverlay) loadingOverlay.classList.add('hidden');
             
             // Reset detection state
             Stabilizer.reset();
@@ -297,7 +282,7 @@ const App = {
             corners: finalCorners,
             locked: isLocked,
             status: status,
-            stableCount: (typeof RectangleMath !== 'undefined' && RectangleMath.state) ? RectangleMath.state.stableFrameCount : 0
+            stableCount: RectangleMath ? RectangleMath.state.stableFrameCount : 0
         });
     },
 
@@ -312,20 +297,12 @@ const App = {
             }
         }
         
-        // NEW: Pass imageData for edge validation
-        return this.arbitrateDetection(opencvResult, heatmapResult, imageData, w, h);
+        return this.arbitrateDetection(opencvResult, heatmapResult);
     },
 
-    // NEW: Use OpenCVDetector.edgeDensity for validation (moved from inline)
-    arbitrateDetection(opencvResult, heatmapResult, imageData, w, h) {
-        // Check heatmap confidence levels
+    arbitrateDetection(opencvResult, heatmapResult) {
         const heatmapTrusted = heatmapResult && 
             heatmapResult._confidence >= CONFIG.HEATMAP.CONFIDENCE_TRUSTED;
-        const heatmapHighConfidence = heatmapResult && 
-            heatmapResult._confidence >= 0.5;
-        
-        // NEW: Edge density threshold from config
-        const minEdgeDensity = CONFIG.DETECTION?.MIN_EDGE_DENSITY ?? 0.15;
         
         let inAgreement = false;
         if (heatmapTrusted && opencvResult) {
@@ -333,52 +310,14 @@ const App = {
             inAgreement = distance < CONFIG.CORNER.AGREEMENT_DISTANCE;
         }
         
-        // NEW: Check edge density using OpenCVDetector
-        let edgeDensity = 1.0;
-        let edgeCheckPassed = true;
-        
-        if (heatmapHighConfidence && !inAgreement) {
-            // Only check edges when heatmap is confident but OpenCV disagrees/missing
-            edgeDensity = OpenCVDetector.edgeDensity(heatmapResult, imageData, w, h);
-            edgeCheckPassed = edgeDensity >= minEdgeDensity;
-        }
-        
-        // PRIORITY A: High-confidence heatmap + edge check passes
-        if (heatmapHighConfidence && edgeCheckPassed) {
-            console.log(`🔥 Heatmap accepted (conf: ${heatmapResult._confidence.toFixed(2)}, edges: ${edgeDensity.toFixed(2)})`);
-            return heatmapResult;
-        }
-        
-        // NEW: Reject high-confidence heatmap if edges are weak
-        if (heatmapHighConfidence && !edgeCheckPassed) {
-            console.log(`⚠️ Heatmap rejected (low edge density: ${edgeDensity.toFixed(2)})`);
-            // Fall through to other options
-        }
-        
-        // PRIORITY B: Both agree - use heatmap (more accurate corners)
         if (opencvResult && heatmapTrusted && inAgreement) {
-            console.log(`✅ OpenCV + Heatmap agree, using heatmap`);
+            return opencvResult;
+        } else if (opencvResult) {
+            return opencvResult;
+        } else if (heatmapTrusted && heatmapResult._confidence >= CONFIG.HEATMAP.CONFIDENCE_RESCUE) {
             return heatmapResult;
         }
         
-        // PRIORITY C: Trusted heatmap alone - verify edges
-        if (heatmapTrusted && !inAgreement) {
-            const density = OpenCVDetector.edgeDensity(heatmapResult, imageData, w, h);
-            if (density >= minEdgeDensity) {
-                console.log(`🔶 Heatmap alone accepted (conf: ${heatmapResult._confidence.toFixed(2)}, edges: ${density.toFixed(2)})`);
-                return heatmapResult;
-            } else {
-                console.log(`⚠️ Heatmap alone rejected (edges: ${density.toFixed(2)})`);
-            }
-        }
-        
-        // PRIORITY D: Fall back to OpenCV
-        if (opencvResult) {
-            console.log(`📐 Falling back to OpenCV`);
-            return opencvResult;
-        }
-        
-        // PRIORITY E: Nothing valid
         return null;
     },
 
@@ -429,7 +368,7 @@ const App = {
     // CAPTURE
     // ═══════════════════════════════════════════════════════════════
 
-    async handleCapture() {
+    handleCapture() {
         // Use RectangleMath as the source of truth (same as preview)
         if (typeof RectangleMath !== 'undefined') {
             const corners = RectangleMath.getCurrentCorners();
@@ -437,99 +376,33 @@ const App = {
             if (corners) {
                 // Use corners from RectangleMath
                 console.log('📸 Capturing with RectangleMath corners', corners);
-                await this.captureWithCorners(corners);
+                this.captureWithCorners(corners);
             } else {
                 // No corners detected - manual crop
                 console.log('📸 No corners - manual crop');
-                await this.captureForManualCrop();
+                this.captureForManualCrop();
             }
         } else {
             // Fallback to old Stabilizer method
             if (Stabilizer.isLocked()) {
-                await this.captureWithCorners(Stabilizer.getLockedCorners());
+                this.captureWithCorners(Stabilizer.getLockedCorners());
             } else if (Stabilizer.shouldShowNoDocWarning()) {
-                await this.captureForManualCrop();
+                this.captureForManualCrop();
             } else if (Stabilizer.getLastCorners()) {
-                await this.captureWithCorners(Stabilizer.getLastCorners());
+                this.captureWithCorners(Stabilizer.getLastCorners());
             } else {
-                await this.captureForManualCrop();
+                this.captureForManualCrop();
             }
         }
     },
 
-    /**
-     * Try to capture high-resolution image using Capacitor Camera
-     * Falls back to browser video frame if not available
-     */
-    async captureHighResFrame() {
-        // Check if Capacitor Camera is available
-        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Camera) {
-            try {
-                console.log('📷 Attempting high-res capture via Capacitor...');
-                const { Camera, CameraResultType, CameraSource } = window.Capacitor.Plugins;
-                
-                const photo = await Camera.getPhoto({
-                    quality: 100,
-                    allowEditing: false,
-                    resultType: CameraResultType.DataUrl,
-                    source: CameraSource.Camera,
-                    saveToGallery: false,
-                    correctOrientation: true,
-                    width: 4096,
-                    height: 4096
-                });
-                
-                // Convert data URL to canvas
-                const img = new Image();
-                await new Promise((resolve, reject) => {
-                    img.onload = resolve;
-                    img.onerror = reject;
-                    img.src = photo.dataUrl;
-                });
-                
-                const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
-                canvas.getContext('2d').drawImage(img, 0, 0);
-                
-                console.log(`📷 High-res capture: ${canvas.width}x${canvas.height}`);
-                return { canvas, isHighRes: true };
-                
-            } catch (err) {
-                console.warn('Capacitor Camera failed, using video frame:', err);
-            }
-        }
-        
-        // Fallback: Use browser video frame
-        const canvas = ImageProcessor.captureFrame(this.video);
-        console.log(`📷 Browser capture: ${canvas.width}x${canvas.height}`);
-        return { canvas, isHighRes: false };
-    },
-
-    async captureWithCorners(corners) {
-        UI.flash();
-        
-        // Try high-res capture first
-        const { canvas: frame, isHighRes } = await this.captureHighResFrame();
-        
-        // Scale corners if we got high-res image
-        let scaledCorners = corners;
-        if (isHighRes && frame.width !== this.video.videoWidth) {
-            const scaleX = frame.width / this.video.videoWidth;
-            const scaleY = frame.height / this.video.videoHeight;
-            scaledCorners = {
-                tl: { x: corners.tl.x * scaleX, y: corners.tl.y * scaleY },
-                tr: { x: corners.tr.x * scaleX, y: corners.tr.y * scaleY },
-                br: { x: corners.br.x * scaleX, y: corners.br.y * scaleY },
-                bl: { x: corners.bl.x * scaleX, y: corners.bl.y * scaleY }
-            };
-            console.log(`📐 Scaled corners for high-res: ${scaleX.toFixed(2)}x`);
-        }
+    captureWithCorners(corners) {
+        const frame = ImageProcessor.captureFrame(this.video);
         
         let processed;
         try {
             // Step 1: Perspective correction
-            processed = ImageProcessor.perspectiveCorrect(frame, scaledCorners);
+            processed = ImageProcessor.perspectiveCorrect(frame, corners);
             
             // Step 2: Clean edges (crop + white border)
             if (typeof ImageProcessor.cleanEdges === 'function') {
@@ -540,6 +413,8 @@ const App = {
             console.error('Perspective correction failed:', err);
             processed = frame;
         }
+        
+        UI.flash();
         
         // Reset detection state for next scan
         Stabilizer.unlock();
@@ -552,12 +427,6 @@ const App = {
     },
 
     captureForManualCrop() {
-        // Safety check for ImageProcessor
-        if (typeof ImageProcessor === 'undefined') {
-            console.error('❌ ImageProcessor not loaded!');
-            UI.alert('Scanner not ready. Please refresh.');
-            return;
-        }
         const frame = ImageProcessor.captureFrame(this.video);
         UI.flash();
         this.showCropScreen(frame);
@@ -625,14 +494,15 @@ const App = {
 
     showFilterScreen() {
         UI.showScreen('filter');
-        UI.setActiveFilter('document');  // Default to document filter
+        UI.setActiveFilter('auto');
         UI.resetAdjustments();
         
         FilterManager.init(this.currentCapture);
+        FilterManager.runScanAnimation();
     },
 
     selectFilter(filter) {
-        FilterManager.applyFilter(filter);
+        FilterManager.setFilter(filter);
         UI.setActiveFilter(filter);
     },
 

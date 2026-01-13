@@ -1,6 +1,10 @@
 /**
- * SmartScanner App Controller
+ * SmartScanner App Controller v2.0
  * Main application logic - orchestrates all modules
+ * 
+ * UPDATED: Now uses CameraModule for Capacitor compatibility
+ * - Browser: getUserMedia for preview and capture
+ * - Native App: getUserMedia for preview, Capacitor Camera for HD capture
  */
 
 const App = {
@@ -14,6 +18,7 @@ const App = {
     pages: [],
     detecting: false,
     currentCapture: null,
+    isNative: false,
 
     /**
      * Initialize application
@@ -21,10 +26,19 @@ const App = {
     async init() {
         console.log(`SmartScanner v${CONFIG.VERSION} initializing...`);
         
+        // Check if running in Capacitor
+        this.isNative = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform();
+        console.log(`📱 Platform: ${this.isNative ? 'Native (Capacitor)' : 'Browser'}`);
+        
         // Get DOM elements
         this.video = document.getElementById('video');
         this.overlay = document.getElementById('overlay');
         this.overlayCtx = this.overlay.getContext('2d');
+        
+        // Initialize Camera Module
+        if (typeof CameraModule !== 'undefined') {
+            CameraModule.init(this.video);
+        }
         
         // Initialize UI
         UI.init();
@@ -92,7 +106,7 @@ const App = {
     },
 
     // ═══════════════════════════════════════════════════════════════
-    // CAMERA
+    // CAMERA (Updated for Capacitor)
     // ═══════════════════════════════════════════════════════════════
 
     async startCamera() {
@@ -100,68 +114,28 @@ const App = {
         UI.setStatus('Requesting camera...');
         
         try {
-            // IMPORTANT: Stop any existing stream first to prevent camera lock
-            if (this.stream) {
-                console.log('🔄 Stopping existing camera stream...');
-                this.stream.getTracks().forEach(track => {
-                    track.stop();
-                    console.log(`  Stopped track: ${track.kind}`);
+            // Use CameraModule if available
+            if (typeof CameraModule !== 'undefined') {
+                const result = await CameraModule.startPreview({
+                    facingMode: CONFIG.CAMERA.FACING_MODE,
+                    width: CONFIG.CAMERA.WIDTH,
+                    height: CONFIG.CAMERA.HEIGHT
                 });
-                this.stream = null;
-                this.video.srcObject = null;
                 
-                // Small delay to allow camera to fully release
-                await new Promise(resolve => setTimeout(resolve, 300));
+                if (!result.success) {
+                    throw new Error(result.error);
+                }
+                
+                this.stream = CameraModule.stream;
+                
+                // Set overlay dimensions
+                this.overlay.width = result.width || CONFIG.CAMERA.WIDTH;
+                this.overlay.height = result.height || CONFIG.CAMERA.HEIGHT;
+                
+            } else {
+                // Fallback to direct getUserMedia
+                await this.startCameraLegacy();
             }
-            
-            // Request camera with fallback options
-            let stream = null;
-            
-            // Try ideal settings first
-            try {
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: CONFIG.CAMERA.FACING_MODE,
-                        width: { ideal: CONFIG.CAMERA.WIDTH },
-                        height: { ideal: CONFIG.CAMERA.HEIGHT }
-                    },
-                    audio: false
-                });
-            } catch (e) {
-                console.warn('Ideal camera settings failed, trying basic...', e);
-                // Fallback to basic camera request
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' },
-                    audio: false
-                });
-            }
-            
-            this.stream = stream;
-            this.video.srcObject = stream;
-            
-            // Wait for video to be ready with timeout
-            await new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                    console.warn('Video loadeddata timeout, continuing anyway...');
-                    resolve();
-                }, 5000);
-                
-                this.video.onloadedmetadata = () => {
-                    clearTimeout(timeout);
-                    resolve();
-                };
-                
-                this.video.onerror = (e) => {
-                    clearTimeout(timeout);
-                    reject(new Error('Video element error'));
-                };
-            });
-            
-            await this.video.play();
-            
-            // Set overlay dimensions
-            this.overlay.width = this.video.videoWidth || CONFIG.CAMERA.WIDTH;
-            this.overlay.height = this.video.videoHeight || CONFIG.CAMERA.HEIGHT;
             
             console.log(`📷 Camera ready: ${this.overlay.width}x${this.overlay.height}`);
             UI.setStatus('Point at document');
@@ -176,29 +150,66 @@ const App = {
             
         } catch (err) {
             console.error('Camera error:', err);
-            
-            // User-friendly error messages
-            let message = 'Camera error';
-            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                message = 'Camera permission denied. Please allow camera access and refresh.';
-            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-                message = 'No camera found on this device.';
-            } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-                message = 'Camera is in use by another app. Close other apps and try again.';
-            } else {
-                message = 'Camera error: ' + err.message;
-            }
-            
-            UI.setStatus(message, 'warning');
-            UI.alert(message + '\n\nTry refreshing the page.');
+            UI.setStatus(err.message || 'Camera error', 'warning');
+            UI.alert(err.message + '\n\nPlease check camera permissions in app settings.');
         }
     },
 
-    stopCamera() {
+    /**
+     * Legacy camera start (fallback)
+     */
+    async startCameraLegacy() {
+        // Stop existing stream
         if (this.stream) {
             this.stream.getTracks().forEach(track => track.stop());
             this.stream = null;
+            this.video.srcObject = null;
+            await new Promise(resolve => setTimeout(resolve, 300));
         }
+        
+        let stream = null;
+        
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: CONFIG.CAMERA.FACING_MODE,
+                    width: { ideal: CONFIG.CAMERA.WIDTH },
+                    height: { ideal: CONFIG.CAMERA.HEIGHT }
+                },
+                audio: false
+            });
+        } catch (e) {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' },
+                audio: false
+            });
+        }
+        
+        this.stream = stream;
+        this.video.srcObject = stream;
+        
+        await new Promise((resolve) => {
+            const timeout = setTimeout(resolve, 5000);
+            this.video.onloadedmetadata = () => {
+                clearTimeout(timeout);
+                resolve();
+            };
+        });
+        
+        await this.video.play();
+        
+        this.overlay.width = this.video.videoWidth || CONFIG.CAMERA.WIDTH;
+        this.overlay.height = this.video.videoHeight || CONFIG.CAMERA.HEIGHT;
+    },
+
+    stopCamera() {
+        if (typeof CameraModule !== 'undefined') {
+            CameraModule.stopPreview();
+        } else if (this.stream) {
+            this.stream.getTracks().forEach(track => track.stop());
+        }
+        
+        this.stream = null;
         this.video.srcObject = null;
         
         // Reset all detection state
@@ -212,7 +223,7 @@ const App = {
 
     startDetection() {
         const detect = async () => {
-            if (!this.stream) return;
+            if (!this.stream && !(typeof CameraModule !== 'undefined' && CameraModule.stream)) return;
             
             if (!this.detecting) {
                 this.detecting = true;
@@ -245,8 +256,6 @@ const App = {
         }
         
         // Step 3: Apply RectangleMath stabilization layer
-        // This is THE SINGLE SOURCE OF TRUTH for final corners
-        // It handles: validation, ordering, smoothing, locking
         let finalCorners = null;
         let isLocked = false;
         let status = 'searching';
@@ -259,7 +268,6 @@ const App = {
                 'preview'
             );
             
-            // Get lock status from RectangleMath
             const rmStatus = RectangleMath.getStatus();
             isLocked = rmStatus.isLocked;
             
@@ -269,15 +277,13 @@ const App = {
                 status = 'searching';
             }
         } else {
-            // Fallback to old Stabilizer if RectangleMath not available
             const state = Stabilizer.update(corners);
             finalCorners = state.corners;
             isLocked = state.locked;
             status = state.status;
         }
         
-        // Step 4: Draw overlay with FINAL corners only
-        // Both lines AND dots come from the same source
+        // Step 4: Draw overlay
         this.drawOverlay({
             corners: finalCorners,
             locked: isLocked,
@@ -365,39 +371,69 @@ const App = {
     },
 
     // ═══════════════════════════════════════════════════════════════
-    // CAPTURE
+    // CAPTURE (Updated for HD Capture)
     // ═══════════════════════════════════════════════════════════════
 
-    handleCapture() {
-        // Use RectangleMath as the source of truth (same as preview)
+    async handleCapture() {
+        // Get corners for perspective correction
+        let corners = null;
+        
         if (typeof RectangleMath !== 'undefined') {
-            const corners = RectangleMath.getCurrentCorners();
-            
-            if (corners) {
-                // Use corners from RectangleMath
-                console.log('📸 Capturing with RectangleMath corners', corners);
-                this.captureWithCorners(corners);
-            } else {
-                // No corners detected - manual crop
-                console.log('📸 No corners - manual crop');
-                this.captureForManualCrop();
-            }
+            corners = RectangleMath.getCurrentCorners();
+        } else if (Stabilizer.isLocked()) {
+            corners = Stabilizer.getLockedCorners();
+        } else if (Stabilizer.getLastCorners()) {
+            corners = Stabilizer.getLastCorners();
+        }
+        
+        if (corners) {
+            console.log('📸 Capturing with corners', corners);
+            await this.captureWithCorners(corners);
         } else {
-            // Fallback to old Stabilizer method
-            if (Stabilizer.isLocked()) {
-                this.captureWithCorners(Stabilizer.getLockedCorners());
-            } else if (Stabilizer.shouldShowNoDocWarning()) {
-                this.captureForManualCrop();
-            } else if (Stabilizer.getLastCorners()) {
-                this.captureWithCorners(Stabilizer.getLastCorners());
-            } else {
-                this.captureForManualCrop();
-            }
+            console.log('📸 No corners - manual crop');
+            await this.captureForManualCrop();
         }
     },
 
-    captureWithCorners(corners) {
-        const frame = ImageProcessor.captureFrame(this.video);
+    async captureWithCorners(corners) {
+        UI.showLoading('Capturing HD image...');
+        
+        let frame;
+        
+        // Try HD capture on native platform
+        if (typeof CameraModule !== 'undefined' && CameraModule.hasNativeCapture()) {
+            console.log('📸 Using native HD capture...');
+            const result = await CameraModule.captureHD();
+            
+            if (result.success && result.source === 'native') {
+                // Got HD image from native camera
+                frame = result.canvas;
+                console.log(`📸 Native HD: ${frame.width}x${frame.height}`);
+                
+                // Need to re-detect corners on HD image since dimensions changed
+                // For now, scale corners to new resolution
+                const scaleX = frame.width / this.video.videoWidth;
+                const scaleY = frame.height / this.video.videoHeight;
+                
+                corners = {
+                    tl: { x: corners.tl.x * scaleX, y: corners.tl.y * scaleY },
+                    tr: { x: corners.tr.x * scaleX, y: corners.tr.y * scaleY },
+                    br: { x: corners.br.x * scaleX, y: corners.br.y * scaleY },
+                    bl: { x: corners.bl.x * scaleX, y: corners.bl.y * scaleY }
+                };
+            } else if (result.cancelled) {
+                UI.hideLoading();
+                return; // User cancelled
+            } else {
+                // Fallback to video capture
+                frame = result.canvas || ImageProcessor.captureFrame(this.video);
+            }
+        } else {
+            // Browser or no native capture - use video frame
+            frame = ImageProcessor.captureFrame(this.video);
+        }
+        
+        UI.hideLoading();
         
         let processed;
         try {
@@ -426,8 +462,27 @@ const App = {
         this.showFilterScreen();
     },
 
-    captureForManualCrop() {
-        const frame = ImageProcessor.captureFrame(this.video);
+    async captureForManualCrop() {
+        UI.showLoading('Capturing...');
+        
+        let frame;
+        
+        // Try HD capture on native platform
+        if (typeof CameraModule !== 'undefined' && CameraModule.hasNativeCapture()) {
+            const result = await CameraModule.captureHD();
+            if (result.success) {
+                frame = result.canvas;
+            } else if (result.cancelled) {
+                UI.hideLoading();
+                return;
+            } else {
+                frame = ImageProcessor.captureFrame(this.video);
+            }
+        } else {
+            frame = ImageProcessor.captureFrame(this.video);
+        }
+        
+        UI.hideLoading();
         UI.flash();
         this.showCropScreen(frame);
     },

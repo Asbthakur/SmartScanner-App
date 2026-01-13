@@ -8,6 +8,15 @@ const UI = {
     currentScreen: 'welcome',
     
     /**
+     * Initialize UI
+     */
+    init() {
+        console.log('📱 UI initialized');
+        // Show welcome screen by default
+        this.showScreen('welcome');
+    },
+    
+    /**
      * Show a screen
      */
     showScreen(name) {

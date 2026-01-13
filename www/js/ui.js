@@ -133,5 +133,32 @@ const UI = {
                 <span class="page-number">${i + 1}</span>
             </div>
         `).join('');
+    },
+    
+    /**
+     * Set active filter button
+     */
+    setActiveFilter(filterName) {
+        // Remove active from all filter buttons
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        // Add active to selected filter
+        const activeBtn = document.querySelector(`.filter-btn[data-filter="${filterName}"]`);
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+        }
+    },
+    
+    /**
+     * Reset adjustments sliders
+     */
+    resetAdjustments() {
+        const brightness = document.getElementById('brightness-slider');
+        const contrast = document.getElementById('contrast-slider');
+        
+        if (brightness) brightness.value = 0;
+        if (contrast) contrast.value = 0;
     }
 };
